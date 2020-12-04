@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
+	"flag"
 
 	pb "github.com/matiasinsaurralde/go-grpc-bidirectional-streaming-example/src/proto"
 
@@ -13,8 +15,16 @@ import (
 	"google.golang.org/grpc"
 )
 
+const(
+	defaultTarget = "localhost:50005"
+)
+
 func main() {
 	rand.Seed(time.Now().Unix())
+
+	targetPtr := flag.String("server", defaultTarget, "set the gRPC target server")
+	flag.Parse()
+	fmt.Printf("Target server is: %s\n", *targetPtr)
 
 	// dail server
 	conn, err := grpc.Dial(":50005", grpc.WithInsecure())
