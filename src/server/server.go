@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -10,10 +12,13 @@ import (
 	"google.golang.org/grpc"
 )
 
+const(
+	defaultListenAddr = "127.0.0.1:50005"
+)
+
 type server struct{}
 
 func (s server) Max(srv pb.Math_MaxServer) error {
-
 	log.Println("start new server")
 	var max int32
 	ctx := srv.Context()
@@ -57,8 +62,12 @@ func (s server) Max(srv pb.Math_MaxServer) error {
 }
 
 func main() {
+	listenAddrPtr := flag.String("listen", defaultListenAddr, "set the gRPC listen address")
+	flag.Parse()
+	fmt.Printf("Listen address is: %s\n", *listenAddrPtr)
+
 	// create listiner
-	lis, err := net.Listen("tcp", ":50005")
+	lis, err := net.Listen("tcp", *listenAddrPtr)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
