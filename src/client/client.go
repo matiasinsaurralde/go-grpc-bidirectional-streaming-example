@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"flag"
 	"fmt"
+	"google.golang.org/grpc/credentials"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
-	"flag"
 
 	pb "github.com/matiasinsaurralde/go-grpc-bidirectional-streaming-example/src/proto"
 
@@ -15,21 +19,74 @@ import (
 	"google.golang.org/grpc"
 )
 
-const(
-	defaultTarget = "localhost:50005"
+const (
+	defaultTarget     = "localhost:50005"
+	defaultCertOption = "cert/ca-cert.pem"
 )
+
+var (
+	targetOption   = ""
+	insecureOption bool
+	certOption     string
+	tlsMode        bool
+)
+
+func loadTLSCredentials() (credentials.TransportCredentials, error) {
+	// Load certificate of the CA who signed server's certificate
+	pemServerCA, err := ioutil.ReadFile(certOption)
+	if err != nil {
+		return nil, err
+	}
+
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(pemServerCA) {
+		return nil, fmt.Errorf("failed to add server CA's certificate")
+	}
+
+	// Create the credentials and return it
+	config := &tls.Config{
+		RootCAs: certPool,
+	}
+
+	if insecureOption {
+		config.InsecureSkipVerify = true
+	}
+
+	return credentials.NewTLS(config), nil
+}
 
 func main() {
 	rand.Seed(time.Now().Unix())
 
-	targetPtr := flag.String("server", defaultTarget, "set the gRPC target server")
-	flag.Parse()
-	fmt.Printf("Target server is: %s\n", *targetPtr)
+	flag.StringVar(&targetOption, "server", defaultTarget, "set the gRPC target server")
+	flag.BoolVar(&insecureOption, "insecure", false, "use insecure mode")
+	flag.StringVar(&certOption, "cert", defaultCertOption, "certificate path")
+	flag.BoolVar(&tlsMode, "tls", false, "use TLS")
 
-	// dail server
-	conn, err := grpc.Dial(*targetPtr, grpc.WithInsecure())
-	if err != nil {
-		log.Fatalf("can not connect with server %v", err)
+	flag.Parse()
+	fmt.Printf("Target server is: %s\n", targetOption)
+	fmt.Printf("Insecure mode: %v\n", insecureOption)
+	fmt.Printf("TLS mode: %v\n", tlsMode)
+	if tlsMode {
+		fmt.Printf("Certificate path: %s\n", certOption)
+	}
+
+	var conn *grpc.ClientConn
+	var err error
+	if tlsMode {
+		tlsCredentials, err := loadTLSCredentials()
+		if err != nil {
+			log.Fatal("cannot load TLS credentials: ", err)
+		}
+		conn, err = grpc.Dial(targetOption, grpc.WithTransportCredentials(tlsCredentials))
+		if err != nil {
+			log.Fatal("cannot dial server: ", err)
+		}
+	} else {
+		conn, err = grpc.Dial(targetOption, grpc.WithInsecure())
+		if err != nil {
+			log.Fatal("cannot dial server: ", err)
+		}
 	}
 
 	// create stream
